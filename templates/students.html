@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Студенты — Домашние задания{% endblock %}
+{% block content %}
+  <div class="students-toolbar">
+    <form method="get" action="/students" class="group-filter">
+      <label class="field-label" for="group-select">Группа</label>
+      <select id="group-select" name="group" onchange="this.form.submit()">
+        <option value="">Все группы ({{ total_count }})</option>
+        {% for g in groups %}
+          <option value="{{ g.name }}" {{ 'selected' if g.name == selected_group }}>
+            {{ g.name }} ({{ g.count }})
+          </option>
+        {% endfor %}
+        {% if has_no_group %}
+          <option value="__none__" {{ 'selected' if selected_group == '__none__' }}>Без группы ({{ no_group_count }})</option>
+        {% endif %}
+      </select>
+      {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    </form>
+
+    <div class="sort-links">
+      <span class="field-label">Сортировка:</span>
+      <a href="{{ sort_urls.name }}" class="{{ 'active' if sort == 'name' }}">по имени</a>
+      <a href="{{ sort_urls.group }}" class="{{ 'active' if sort == 'group' }}">по группе</a>
+      <a href="{{ sort_urls.recent }}" class="{{ 'active' if sort == 'recent' or not sort }}">по активности</a>
+    </div>
+  </div>
+
+  {% if students %}
+    <ul class="entry-list">
+      {% for st in students %}
+        <li>
+          <a class="entry" href="/students/{{ st.id }}">
+            <div class="entry-top">
+              <span class="entry-name">{{ st.full_name }}{% if st.group_name %} · {{ st.group_name }}{% else %} · без группы{% endif %}</span>
+              <span class="entry-meta">
+                {% if st.username %}@{{ st.username }}{% endif %}
+                <span class="badge {{ 'reviewed' if st.new_count == 0 }}">
+                  {{ st.submission_count }} работ{% if st.new_count %}, {{ st.new_count }} новых{% endif %}
+                </span>
+              </span>
+            </div>
+            {% if st.notes %}<div class="entry-caption note-preview">📌 {{ st.notes }}</div>{% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">Студентов пока нет.</div>
+  {% endif %}
+{% endblock %}

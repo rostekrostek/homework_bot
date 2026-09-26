@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ st.full_name }} — Студенты{% endblock %}
+{% block content %}
+  <a class="back-link" href="/students">← Ко всем студентам</a>
+
+  <h2>{{ st.full_name }}</h2>
+  <p class="entry-meta">
+    {% if st.username %}@{{ st.username }} · {% endif %}
+    в боте с {{ st.created_at.strftime('%d.%m.%Y') }}
+  </p>
+
+  {% if saved %}<div class="saved-notice">Изменения сохранены.</div>{% endif %}
+
+  <div class="card">
+    <form method="post" action="/students/{{ st.id }}">
+      <div class="field-label">Имя и фамилия</div>
+      <input type="text" name="full_name" value="{{ st.full_name }}" required>
+
+      <div class="field-label" style="margin-top: 14px;">Группа</div>
+      <input type="text" name="group_name" value="{{ st.group_name or '' }}" placeholder="например, ИЯ-21">
+
+      <div class="field-label" style="margin-top: 14px;">
+        Заметка для себя <span class="muted-inline">(видна только вам, студент её не видит)</span>
+      </div>
+      <textarea name="notes" placeholder="Например: часто пропускает произношение, старается...">{{ st.notes or '' }}</textarea>
+
+      <button type="submit">Сохранить</button>
+    </form>
+  </div>
+
+  <h3>Сданные работы</h3>
+  {% if submissions %}
+    <ul class="entry-list">
+      {% for s in submissions %}
+        <li>
+          <a class="entry" href="/submission/{{ s.id }}">
+            <div class="entry-top">
+              <span class="entry-name">{{ s.caption or (s.kind|capitalize) }}</span>
+              <span class="entry-meta">
+                {{ s.created_at.strftime('%d.%m %H:%M') }}
+                <span class="badge {{ 'reviewed' if s.status == 'reviewed' }}">
+                  {% if s.kind == 'voice' %}голосовое{% elif s.kind == 'document' %}файл{% else %}текст{% endif %}
+                </span>
+              </span>
+            </div>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">Пока нет сданных работ.</div>
+  {% endif %}
+{% endblock %}
