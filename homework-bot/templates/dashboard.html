@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Домашние задания</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1>Домашние задания</h1>
+      <a class="logout" href="/logout">Выйти</a>
+    </header>
+
+    <div class="tabs">
+      <a href="/?status=new" class="{{ 'active' if status == 'new' }}">Новые</a>
+      <a href="/?status=reviewed" class="{{ 'active' if status == 'reviewed' }}">С отзывом</a>
+      <a href="/?status=all" class="{{ 'active' if status == 'all' }}">Все</a>
+    </div>
+
+    {% if submissions %}
+      <ul class="entry-list">
+        {% for s in submissions %}
+          <li>
+            <a class="entry" href="/submission/{{ s.id }}">
+              <div class="entry-top">
+                <span class="entry-name">{{ s.student_name }}{% if s.group %} · {{ s.group }}{% endif %}</span>
+                <span class="entry-meta">
+                  {{ s.created_at.strftime('%d.%m %H:%M') }}
+                  <span class="badge {{ 'reviewed' if s.status == 'reviewed' }}">
+                    {{ 'голосовое' if s.kind == 'voice' else 'текст' }}
+                  </span>
+                </span>
+              </div>
+              {% if s.caption %}<div class="entry-caption">{{ s.caption }}</div>{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">Пока ничего нет в этом разделе.</div>
+    {% endif %}
+  </div>
+</body>
+</html>
