@@ -1,28 +1,16 @@
-import asyncio
 import secrets
-import subprocess
 from datetime import datetime
-from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_
 from starlette.middleware.sessions import SessionMiddleware
 
-from config import (
-    BOT_TOKEN,
-    FFMPEG_PATH,
-    MEDIA_DIR,
-    PANEL_PASSWORD,
-    SECRET_KEY,
-    WEB_HOST,
-    WEB_PORT,
-)
-from database import Group, Student, Submission, SubmissionFile, SessionLocal, init_db
+from config import BOT_TOKEN, MEDIA_DIR, PANEL_PASSWORD, SECRET_KEY, WEB_HOST, WEB_PORT
+from database import Student, Submission, SessionLocal, init_db
 
 init_db()
 
@@ -32,8 +20,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
-
-KIND_LABELS = {"voice": "голосовое сообщение", "document": "файл(ы)", "text": "текстовое задание"}
 
 
 def is_logged_in(request: Request) -> bool:
@@ -48,22 +34,6 @@ def _students_url(group: str | None, sort: str | None) -> str:
         params["sort"] = sort
     qs = urlencode(params)
     return "/students" + (("?" + qs) if qs else "")
-
-
-def _transcode_to_ogg_sync(input_path: Path, output_path: Path) -> bool:
-    try:
-        result = subprocess.run(
-            [FFMPEG_PATH, "-y", "-i", str(input_path), "-ac", "1", "-c:a", "libopus", "-b:a", "32k", str(output_path)],
-            capture_output=True,
-            timeout=60,
-        )
-        return result.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0
-    except Exception:
-        return False
-
-
-async def _transcode_to_ogg(input_path: Path, output_path: Path) -> bool:
-    return await asyncio.to_thread(_transcode_to_ogg_sync, input_path, output_path)
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -88,31 +58,20 @@ async def logout(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, status: str = "new", q: str = ""):
+async def dashboard(request: Request, status: str = "new"):
     if not is_logged_in(request):
         return RedirectResponse("/login", status_code=303)
 
-    q = q.strip()
     session = SessionLocal()
     try:
         query = session.query(Submission).order_by(Submission.created_at.desc())
-        if q:
-            like = f"%{q}%"
-            query = query.join(Student).filter(
-                or_(
-                    Student.full_name.ilike(like),
-                    Submission.text_content.ilike(like),
-                    Submission.caption.ilike(like),
-                )
-            )
-        elif status in ("new", "reviewed"):
+        if status in ("new", "reviewed"):
             query = query.filter_by(status=status)
-
         rows = [
             {
                 "id": s.id,
                 "student_name": s.student.full_name,
-                "group": s.student.display_group,
+                "group": s.student.group_name,
                 "kind": s.kind,
                 "caption": s.caption,
                 "created_at": s.created_at,
@@ -126,7 +85,7 @@ async def dashboard(request: Request, status: str = "new", q: str = ""):
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"submissions": rows, "status": status, "q": q, "authed": True, "active_page": "dashboard"},
+        {"submissions": rows, "status": status, "authed": True, "active_page": "dashboard"},
     )
 
 
@@ -143,29 +102,21 @@ async def submission_detail(request: Request, submission_id: int):
         data = {
             "id": s.id,
             "student_name": s.student.full_name,
-            "group": s.student.display_group,
+            "group": s.student.group_name,
             "kind": s.kind,
             "text_content": s.text_content,
             "file_path": s.file_path,
             "original_filename": s.original_filename,
-            "files": [
-                {"file_path": f.file_path, "original_filename": f.original_filename}
-                for f in s.files
-            ],
             "caption": s.caption,
             "created_at": s.created_at,
             "status": s.status,
             "feedback_text": s.feedback_text,
-            "feedback_voice_path": s.feedback_voice_path,
         }
     finally:
         session.close()
 
-    error = request.query_params.get("error")
     return templates.TemplateResponse(
-        request,
-        "submission.html",
-        {"s": data, "error": error, "authed": True, "active_page": None},
+        request, "submission.html", {"s": data, "authed": True, "active_page": None}
     )
 
 
@@ -181,84 +132,34 @@ async def get_media(request: Request, filename: str):
 
 @app.post("/submission/{submission_id}/feedback")
 async def send_feedback(
-    request: Request,
-    submission_id: int,
-    feedback_text: str = Form(""),
-    voice: UploadFile | None = File(None),
+    request: Request, submission_id: int, feedback_text: str = Form(...)
 ):
     if not is_logged_in(request):
         return RedirectResponse("/login", status_code=303)
-
-    feedback_text = feedback_text.strip()
-    has_voice = voice is not None and bool(voice.filename)
-
-    if not feedback_text and not has_voice:
-        return RedirectResponse(f"/submission/{submission_id}?error=empty", status_code=303)
 
     session = SessionLocal()
     try:
         s = session.query(Submission).filter_by(id=submission_id).first()
         if not s:
             raise HTTPException(status_code=404, detail="Задание не найдено")
-        was_reviewed = s.status == "reviewed"
-
-        voice_rel_path = None
-        if has_voice:
-            raw_bytes = await voice.read()
-            suffix = Path(voice.filename).suffix or ".webm"
-            ts = int(datetime.utcnow().timestamp() * 1000)
-            tmp_input = MEDIA_DIR / f"_tmp_feedback_{submission_id}_{ts}{suffix}"
-            tmp_input.write_bytes(raw_bytes)
-
-            out_filename = f"feedback_voice_{submission_id}_{ts}.ogg"
-            out_path = MEDIA_DIR / out_filename
-            converted = await _transcode_to_ogg(tmp_input, out_path)
-            tmp_input.unlink(missing_ok=True)
-
-            if converted:
-                voice_rel_path = out_filename
-            else:
-                # ffmpeg недоступен или конвертация не удалась — сохраняем как есть
-                fallback_name = f"feedback_voice_{submission_id}_{ts}{suffix}"
-                (MEDIA_DIR / fallback_name).write_bytes(raw_bytes)
-                voice_rel_path = fallback_name
-
-        if feedback_text:
-            s.feedback_text = feedback_text
-        if voice_rel_path:
-            s.feedback_voice_path = voice_rel_path
+        s.feedback_text = feedback_text
         s.status = "reviewed"
         s.feedback_at = datetime.utcnow()
         session.commit()
-
         telegram_id = s.student.telegram_id
-        task_label = s.caption or KIND_LABELS.get(s.kind, "задание")
-        is_edit = was_reviewed
-        voice_is_ogg = voice_rel_path is not None and voice_rel_path.endswith(".ogg")
+        task_label = s.caption or ("голосовое сообщение" if s.kind == "voice" else "текстовое задание")
     finally:
         session.close()
 
-    async with httpx.AsyncClient(timeout=20) as client:
-        if feedback_text:
-            prefix = "✏️ Отзыв обновлён" if is_edit else "📝 Отзыв"
-            message = f"{prefix} на задание «{task_label}»:\n\n{feedback_text}"
-            try:
-                await client.post(f"{TELEGRAM_API}/sendMessage", json={"chat_id": telegram_id, "text": message})
-            except Exception:
-                pass
-        if voice_rel_path:
-            try:
-                file_bytes = (MEDIA_DIR / voice_rel_path).read_bytes()
-                endpoint = "sendVoice" if voice_is_ogg else "sendAudio"
-                field_name = "voice" if voice_is_ogg else "audio"
-                caption = "✏️ Голосовой отзыв обновлён" if is_edit else "📝 Голосовой отзыв"
-                await client.post(
-                    f"{TELEGRAM_API}/{endpoint}",
-                    data={"chat_id": telegram_id, "caption": caption},
-                    files={field_name: (voice_rel_path, file_bytes)},
-                )
-            except Exception:
-                pass
+    message = f"📝 Отзыв на задание «{task_label}»:\n\n{feedback_text}"
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            await client.post(
+                f"{TELEGRAM_API}/sendMessage",
+                json={"chat_id": telegram_id, "text": message},
+            )
+        except Exception:
+            pass  # отзыв уже сохранён в базе, повторно попытаться можно вручную
 
     return RedirectResponse(f"/submission/{submission_id}", status_code=303)
 
@@ -275,7 +176,7 @@ async def students_list(request: Request, group: str = "", sort: str = "recent")
         group_counts: dict[str, int] = {}
         no_group_count = 0
         for st in all_students:
-            name = (st.display_group or "").strip()
+            name = (st.group_name or "").strip()
             if name:
                 group_counts[name] = group_counts.get(name, 0) + 1
             else:
@@ -287,9 +188,9 @@ async def students_list(request: Request, group: str = "", sort: str = "recent")
         ]
 
         if group == "__none__":
-            filtered = [st for st in all_students if not (st.display_group or "").strip()]
+            filtered = [st for st in all_students if not (st.group_name or "").strip()]
         elif group:
-            filtered = [st for st in all_students if (st.display_group or "").strip() == group]
+            filtered = [st for st in all_students if (st.group_name or "").strip() == group]
         else:
             filtered = list(all_students)
 
@@ -304,7 +205,7 @@ async def students_list(request: Request, group: str = "", sort: str = "recent")
                 {
                     "id": st.id,
                     "full_name": st.full_name,
-                    "group_name": st.display_group,
+                    "group_name": st.group_name,
                     "username": st.username,
                     "notes": st.notes,
                     "submission_count": len(submissions),
@@ -356,8 +257,7 @@ async def student_detail(request: Request, student_id: int, saved: bool = False)
         student_data = {
             "id": st.id,
             "full_name": st.full_name,
-            "group_id": st.group_id,
-            "legacy_group_name": st.group_name if not st.group_id else None,
+            "group_name": st.group_name,
             "username": st.username,
             "notes": st.notes,
             "created_at": st.created_at,
@@ -372,7 +272,6 @@ async def student_detail(request: Request, student_id: int, saved: bool = False)
             }
             for s in st.submissions
         ]
-        groups = [{"id": g.id, "name": g.name} for g in session.query(Group).order_by(Group.name).all()]
     finally:
         session.close()
 
@@ -382,7 +281,6 @@ async def student_detail(request: Request, student_id: int, saved: bool = False)
         {
             "st": student_data,
             "submissions": submissions,
-            "groups": groups,
             "saved": saved,
             "authed": True,
             "active_page": "students",
@@ -395,13 +293,14 @@ async def student_update(
     request: Request,
     student_id: int,
     full_name: str = Form(...),
-    group_choice: str = Form(""),
+    group_name: str = Form(""),
     notes: str = Form(""),
 ):
     if not is_logged_in(request):
         return RedirectResponse("/login", status_code=303)
 
     full_name = full_name.strip()
+    group_name = group_name.strip() or None
     notes = notes.strip() or None
 
     session = SessionLocal()
@@ -410,96 +309,13 @@ async def student_update(
         if not st:
             raise HTTPException(status_code=404, detail="Студент не найден")
         st.full_name = full_name or st.full_name
-
-        if group_choice == "__legacy__":
-            pass  # оставить как есть (старое текстовое значение группы)
-        elif group_choice == "":
-            st.group_id = None
-            st.group_name = None
-        else:
-            try:
-                st.group_id = int(group_choice)
-                st.group_name = None
-            except ValueError:
-                pass
-
+        st.group_name = group_name
         st.notes = notes
         session.commit()
     finally:
         session.close()
 
     return RedirectResponse(f"/students/{student_id}?saved=1", status_code=303)
-
-
-@app.get("/groups", response_class=HTMLResponse)
-async def groups_page(request: Request):
-    if not is_logged_in(request):
-        return RedirectResponse("/login", status_code=303)
-
-    session = SessionLocal()
-    try:
-        groups = session.query(Group).order_by(Group.name).all()
-        rows = [{"id": g.id, "name": g.name, "student_count": len(g.students)} for g in groups]
-    finally:
-        session.close()
-
-    return templates.TemplateResponse(
-        request, "groups.html", {"groups": rows, "authed": True, "active_page": "groups"}
-    )
-
-
-@app.post("/groups")
-async def create_group(request: Request, name: str = Form(...)):
-    if not is_logged_in(request):
-        return RedirectResponse("/login", status_code=303)
-
-    name = name.strip()
-    if name:
-        session = SessionLocal()
-        try:
-            exists = session.query(Group).filter_by(name=name).first()
-            if not exists:
-                session.add(Group(name=name))
-                session.commit()
-        finally:
-            session.close()
-    return RedirectResponse("/groups", status_code=303)
-
-
-@app.post("/groups/{group_id}")
-async def rename_group(request: Request, group_id: int, name: str = Form(...)):
-    if not is_logged_in(request):
-        return RedirectResponse("/login", status_code=303)
-
-    name = name.strip()
-    session = SessionLocal()
-    try:
-        g = session.query(Group).filter_by(id=group_id).first()
-        if g and name:
-            g.name = name
-            session.commit()
-    finally:
-        session.close()
-    return RedirectResponse("/groups", status_code=303)
-
-
-@app.post("/groups/{group_id}/delete")
-async def delete_group(request: Request, group_id: int):
-    if not is_logged_in(request):
-        return RedirectResponse("/login", status_code=303)
-
-    session = SessionLocal()
-    try:
-        g = session.query(Group).filter_by(id=group_id).first()
-        if g:
-            for st in g.students:
-                st.group_name = g.name
-                st.group_id = None
-            session.delete(g)
-            session.commit()
-    finally:
-        session.close()
-    return RedirectResponse("/groups", status_code=303)
 
 
 if __name__ == "__main__":

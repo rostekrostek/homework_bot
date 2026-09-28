@@ -1,23 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Домашние задания{% endblock %}
 {% block content %}
-  <form method="get" action="/" class="search-form">
-    <input type="text" name="q" value="{{ q }}" placeholder="Поиск по имени, тексту, подписи...">
-    <button type="submit">Найти</button>
-  </form>
-
-  {% if q %}
-    <div class="search-notice">
-      Результаты поиска по «{{ q }}» ({{ submissions|length }})
-      <a href="/" class="clear-search">✕ Очистить</a>
-    </div>
-  {% else %}
-    <div class="tabs">
-      <a href="/?status=new" class="{{ 'active' if status == 'new' }}">Новые</a>
-      <a href="/?status=reviewed" class="{{ 'active' if status == 'reviewed' }}">С отзывом</a>
-      <a href="/?status=all" class="{{ 'active' if status == 'all' }}">Все</a>
-    </div>
-  {% endif %}
+  <div class="tabs">
+    <a href="/?status=new" class="{{ 'active' if status == 'new' }}">Новые</a>
+    <a href="/?status=reviewed" class="{{ 'active' if status == 'reviewed' }}">С отзывом</a>
+    <a href="/?status=all" class="{{ 'active' if status == 'all' }}">Все</a>
+  </div>
 
   {% if submissions %}
     <ul class="entry-list">
@@ -39,6 +27,6 @@
       {% endfor %}
     </ul>
   {% else %}
-    <div class="empty">{% if q %}Ничего не найдено.{% else %}Пока ничего нет в этом разделе.{% endif %}</div>
+    <div class="empty">Пока ничего нет в этом разделе.</div>
   {% endif %}
 {% endblock %}

@@ -16,10 +16,20 @@
       <div class="field-label">Голосовое сообщение</div>
       <audio controls src="/media/{{ s.file_path }}"></audio>
     {% elif s.kind == 'document' %}
-      <div class="field-label">Файл</div>
-      <a class="file-download" href="/media/{{ s.file_path }}" download="{{ s.original_filename or s.file_path }}">
-        📎 {{ s.original_filename or s.file_path }}
-      </a>
+      <div class="field-label">{{ 'Файлы' if s.files|length > 1 else 'Файл' }}</div>
+      {% if s.files %}
+        <div class="file-list">
+          {% for f in s.files %}
+            <a class="file-download" href="/media/{{ f.file_path }}" download="{{ f.original_filename or f.file_path }}">
+              📎 {{ f.original_filename or f.file_path }}
+            </a>
+          {% endfor %}
+        </div>
+      {% elif s.file_path %}
+        <a class="file-download" href="/media/{{ s.file_path }}" download="{{ s.original_filename or s.file_path }}">
+          📎 {{ s.original_filename or s.file_path }}
+        </a>
+      {% endif %}
     {% else %}
       <div class="field-label">Текст задания</div>
       <p style="white-space: pre-wrap;">{{ s.text_content }}</p>
@@ -29,15 +39,128 @@
   {% if s.status == 'reviewed' %}
     <div class="feedback-block">
       <div class="field-label">Отправленный отзыв</div>
-      <p style="white-space: pre-wrap;">{{ s.feedback_text }}</p>
+      {% if s.feedback_text %}<p style="white-space: pre-wrap;">{{ s.feedback_text }}</p>{% endif %}
+      {% if s.feedback_voice_path %}
+        <audio controls src="/media/{{ s.feedback_voice_path }}" style="margin-top: 8px;"></audio>
+      {% endif %}
     </div>
   {% endif %}
 
   <div class="card">
-    <form method="post" action="/submission/{{ s.id }}/feedback">
+    <form method="post" action="/submission/{{ s.id }}/feedback" enctype="multipart/form-data" id="feedback-form">
       <div class="field-label">{{ 'Изменить отзыв' if s.status == 'reviewed' else 'Написать отзыв' }}</div>
-      <textarea name="feedback_text" required>{{ s.feedback_text or '' }}</textarea>
+      <textarea name="feedback_text" placeholder="Текстовый отзыв (необязательно, если прикладываете голосовой)">{{ s.feedback_text or '' }}</textarea>
+
+      {% if error == 'empty' %}
+        <div class="error">Добавьте текст или голосовой отзыв перед отправкой.</div>
+      {% endif %}
+
+      <div class="field-label" style="margin-top: 16px;">Голосовой отзыв (необязательно)</div>
+      <div class="voice-feedback-controls">
+        <button type="button" id="record-btn" class="secondary-btn">🎙️ Записать</button>
+        <button type="button" id="upload-btn" class="secondary-btn">📁 Загрузить аудиофайл</button>
+        <input type="file" name="voice" id="voice-input" accept="audio/*" style="display:none">
+        <button type="button" id="clear-voice-btn" class="secondary-btn" style="display:none;">✕ Убрать</button>
+      </div>
+      <p class="muted-inline voice-hint">
+        Запись с микрофона работает только по HTTPS (или на localhost). Не получилось —
+        запишите голосовое в телефоне и загрузите файлом.
+      </p>
+      <div id="voice-status" class="muted-inline"></div>
+      <audio id="voice-preview" controls style="display:none; margin-top: 8px;"></audio>
+
       <button type="submit">Отправить студенту</button>
     </form>
   </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var recordBtn = document.getElementById('record-btn');
+  var uploadBtn = document.getElementById('upload-btn');
+  var clearBtn = document.getElementById('clear-voice-btn');
+  var voiceInput = document.getElementById('voice-input');
+  var voiceStatus = document.getElementById('voice-status');
+  var voicePreview = document.getElementById('voice-preview');
+
+  var mediaRecorder = null;
+  var chunks = [];
+  var recording = false;
+  var canRecord = !!(navigator.mediaDevices && window.MediaRecorder);
+
+  if (!canRecord && recordBtn) {
+    recordBtn.style.display = 'none';
+  }
+
+  function showFile(file) {
+    var url = URL.createObjectURL(file);
+    voicePreview.src = url;
+    voicePreview.style.display = 'block';
+    voiceStatus.textContent = file.name || 'запись готова';
+    clearBtn.style.display = 'inline-block';
+  }
+
+  function clearVoice() {
+    voiceInput.value = '';
+    voicePreview.style.display = 'none';
+    voicePreview.src = '';
+    voiceStatus.textContent = '';
+    clearBtn.style.display = 'none';
+  }
+
+  function setInputFile(file) {
+    try {
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      voiceInput.files = dt.files;
+    } catch (e) {
+      voiceStatus.textContent = 'Браузер не поддерживает вставку записи — выберите файл вручную кнопкой "Загрузить аудиофайл".';
+    }
+  }
+
+  if (uploadBtn) {
+    uploadBtn.addEventListener('click', function () { voiceInput.click(); });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', clearVoice);
+  }
+  voiceInput.addEventListener('change', function () {
+    if (voiceInput.files && voiceInput.files[0]) showFile(voiceInput.files[0]);
+  });
+
+  if (recordBtn && canRecord) {
+    recordBtn.addEventListener('click', async function () {
+      if (!recording) {
+        try {
+          var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          chunks = [];
+          mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder.ondataavailable = function (e) {
+            if (e.data.size > 0) chunks.push(e.data);
+          };
+          mediaRecorder.onstop = function () {
+            var blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            var ext = (mediaRecorder.mimeType || '').indexOf('ogg') !== -1 ? 'ogg' : 'webm';
+            var file = new File([blob], 'voice-feedback.' + ext, { type: blob.type });
+            setInputFile(file);
+            showFile(file);
+            stream.getTracks().forEach(function (t) { t.stop(); });
+          };
+          mediaRecorder.start();
+          recording = true;
+          recordBtn.textContent = '⏹ Остановить запись';
+          voiceStatus.textContent = 'Идёт запись...';
+        } catch (e) {
+          voiceStatus.textContent = 'Нет доступа к микрофону (нужен HTTPS или localhost).';
+        }
+      } else {
+        mediaRecorder.stop();
+        recording = false;
+        recordBtn.textContent = '🎙️ Записать';
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}

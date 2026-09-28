@@ -23,7 +23,6 @@
         {% if authed %}
           <a href="/" class="{{ 'active' if active_page == 'dashboard' }}">Задания</a>
           <a href="/students" class="{{ 'active' if active_page == 'students' }}">Студенты</a>
-          <a href="/groups" class="{{ 'active' if active_page == 'groups' }}">Группы</a>
         {% endif %}
         <button id="theme-toggle" class="theme-toggle" type="button" title="Тёмная/светлая тема" aria-label="Переключить тему">
           <span class="icon-sun">☀️</span><span class="icon-moon">🌙</span>

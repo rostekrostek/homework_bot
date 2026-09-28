@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Задание — {{ s.student_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="/">← Ко всем заданиям</a>
+
+  <h2>{{ s.student_name }}{% if s.group %} · {{ s.group }}{% endif %}</h2>
+  <p class="entry-meta">{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+
+  <div class="card">
+    {% if s.caption %}
+      <div class="field-label">Задание</div>
+      <p>{{ s.caption }}</p>
+    {% endif %}
+
+    {% if s.kind == 'voice' %}
+      <div class="field-label">Голосовое сообщение</div>
+      <audio controls src="/media/{{ s.file_path }}"></audio>
+    {% elif s.kind == 'document' %}
+      <div class="field-label">Файл</div>
+      <a class="file-download" href="/media/{{ s.file_path }}" download="{{ s.original_filename or s.file_path }}">
+        📎 {{ s.original_filename or s.file_path }}
+      </a>
+    {% else %}
+      <div class="field-label">Текст задания</div>
+      <p style="white-space: pre-wrap;">{{ s.text_content }}</p>
+    {% endif %}
+  </div>
+
+  {% if s.status == 'reviewed' %}
+    <div class="feedback-block">
+      <div class="field-label">Отправленный отзыв</div>
+      <p style="white-space: pre-wrap;">{{ s.feedback_text }}</p>
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <form method="post" action="/submission/{{ s.id }}/feedback">
+      <div class="field-label">{{ 'Изменить отзыв' if s.status == 'reviewed' else 'Написать отзыв' }}</div>
+      <textarea name="feedback_text" required>{{ s.feedback_text or '' }}</textarea>
+      <button type="submit">Отправить студенту</button>
+    </form>
+  </div>
+{% endblock %}

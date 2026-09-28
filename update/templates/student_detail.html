@@ -17,19 +17,7 @@
       <input type="text" name="full_name" value="{{ st.full_name }}" required>
 
       <div class="field-label" style="margin-top: 14px;">Группа</div>
-      <select name="group_choice">
-        <option value="" {{ 'selected' if not st.group_id and not st.legacy_group_name }}>Без группы</option>
-        {% for g in groups %}
-          <option value="{{ g.id }}" {{ 'selected' if st.group_id == g.id }}>{{ g.name }}</option>
-        {% endfor %}
-        {% if st.legacy_group_name %}
-          <option value="__legacy__" selected>{{ st.legacy_group_name }} (введено вручную студентом)</option>
-        {% endif %}
-      </select>
-      {% if st.legacy_group_name %}
-        <p class="muted-inline">Это старое значение, введённое студентом текстом. Выберите группу из списка
-        выше, чтобы привязать студента к формальной группе.</p>
-      {% endif %}
+      <input type="text" name="group_name" value="{{ st.group_name or '' }}" placeholder="например, ИЯ-21">
 
       <div class="field-label" style="margin-top: 14px;">
         Заметка для себя <span class="muted-inline">(видна только вам, студент её не видит)</span>

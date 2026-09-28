@@ -26,13 +26,6 @@
     </div>
   </div>
 
-  {% if not groups %}
-    <div class="hint-banner">
-      Групп пока нет в списке. Загляните на страницу <a href="/groups">«Группы»</a> и добавьте хотя бы одну —
-      тогда студенты в боте смогут выбирать группу кнопками при регистрации.
-    </div>
-  {% endif %}
-
   {% if students %}
     <ul class="entry-list">
       {% for st in students %}

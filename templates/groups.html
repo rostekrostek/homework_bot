@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Группы — Домашние задания{% endblock %}
+{% block content %}
+  <div class="card">
+    <form method="post" action="/groups" class="inline-form-row">
+      <input type="text" name="name" placeholder="Новая группа, например ИЯ-23" required>
+      <button type="submit">Добавить</button>
+    </form>
+  </div>
+
+  {% if groups %}
+    <ul class="entry-list">
+      {% for g in groups %}
+        <li class="group-row">
+          <form method="post" action="/groups/{{ g.id }}" class="inline-form-row group-rename-form">
+            <input type="text" name="name" value="{{ g.name }}">
+            <button type="submit">Сохранить</button>
+          </form>
+          <span class="entry-meta">{{ g.student_count }} студент(ов)</span>
+          <form method="post" action="/groups/{{ g.id }}/delete"
+                onsubmit="return confirm('Удалить группу «{{ g.name }}»? Студенты останутся, но потеряют привязку к группе.');">
+            <button type="submit" class="danger-btn">Удалить</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      Групп пока нет. Добавьте хотя бы одну — тогда студенты при регистрации в боте смогут
+      выбирать группу кнопками вместо ручного ввода.
+    </div>
+  {% endif %}
+{% endblock %}
