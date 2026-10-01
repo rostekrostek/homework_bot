@@ -1,0 +1,789 @@
+vpn_upstream_headers_mode = 1;
+sign: {
+  include_sign = (
+      "10907_ios_Merchant",
+      "10907_linux_GuzzleHttp"
+  );
+};
+
+header_limit = ( 
+    { name="User-Agent"; value="Apache-HttpClient/* (Java/*)"; limit=300; },
+    { name="X-SP-Token"; value="DyYIM07fRHTBLqm9H2bRuByrftJsse"; limit=1000; },
+    { name="X-SP-Token"; value="Bn5kX9mQ2wL7vR8tP4yH3cJ6dZ1sF0"; limit=300; },
+    { name="User-Agent"; value="Go-http-client/1.1"; limit=1000; },
+    { name="User-Agent"; value="Goods-outbound-adapter/1.0"; limit=500; },
+    { name="User-Agent"; value="Java/1.8.0_251"; limit=50; },
+    );
+
+path_unprotected_limited = ( 
+    #ниже обелены ручки, куда ходит автоматизация партнеров
+    { limit = 60; filter = ( "/api/merchantIntegration/fbo/v1/supply/get"); }, 
+    { limit = 150; filter = ( "/api/merchantIntegration/fbo/v1/supplyItem/list" ); },
+    { limit = 75; filter = ( "/api/merchantIntegration/fbo/v1/supply/list" ); },
+    { limit = 15; filter = ( "/api/merchantIntegration/fbo/v2/offer/list" ); }, 
+    { limit = 80; filter = ( "/api/merchantIntegration/fbo/v1/supplySlots/get" ); },
+    { limit = 65; filter = ( "/api/merchantIntegration/fbo/v1/supplyFacility/get" ); },
+    { limit = 65; filter = ( "/api/merchantIntegration/fbo/v1/item/list" ); },
+    { limit = 20; filter = ( "/api/merchantIntegration/fbo/v1/stock/get" ); },
+    { limit = 30; filter = ( "/api/merchantIntegration/fbo/v1/stockFilter/get" ); },
+    { limit = 25; filter = ( "/api/merchantIntegration/cc/v1/store/edit" ); },
+    { limit = 50; filter = ( "/api/merchantIntegration/cc/v1/store/state/edit" ); },
+    { limit = 10; filter = ( "/api/merchantIntegration/cc/v1/store/find" ); },
+    { limit = 9; filter = ( "/api/merchantIntegration/cc/v1/store/get" ); },
+    { limit = 185; filter = ( "/api/merchantIntegration/cc/v1/store/import" ); },
+    { limit = 10; filter = ( "/api/market/v1/orderService/order/shipping" ); },
+    { limit = 30; filter = ( "/api/market/v1/orderService/order/confirm" ); },
+    { limit = 220; filter = ( "/api/market/v1/orderService/order/cancelResult" ); },
+    { limit = 650; filter = ( "/api/market/v1/orderService/order/close" ); },
+    { limit = 650; filter = ( "/api/market/v1/orderService/order/packing" ); },
+    { limit = 15; filter = ( "/api/market/v1/orderService/order/reject" ); },
+    { limit = 2250; filter = ( "/api/merchantIntegration/v1/offerService/manualPrice/save" ); },  
+    { limit = 1250; filter = ( "/api/market/*/orderService/order/get" ); },
+    { limit = 7000; filter = ( "/api/merchantIntegration/v1/offerService/stock/update" ); }
+    );
+
+spec_url_action_time = 180000;
+spec_url_limit: (
+{
+  action = "block_ip";
+  path = ( "/api/market/v1/adjustIntegrationService/event/save" );
+  window_len_ms = 1000;
+  limit = 300;
+}
+);
+
+spec_ajax = ("/api/colibri",
+            "/api/sting",
+            "/api/merchantIntegration",
+            "/api/market",
+            "/merchantIntegration/v1"
+            );
+
+main_states_api = {
+  version = 1;
+  states = (
+  {
+    name = "generic";
+    # generic and default for client api settings here
+
+    predefines = (
+    {
+      name = "gpred";
+
+      base_user_classes_settings = {
+      };
+
+      user_classes = {
+      };
+    },
+{
+  name = "Merchant_Token";
+  restrictions = {
+      headers_glob = (
+          "X-Merchant-Token:*"
+      );
+  };
+},
+    {
+      name = "cpt"; # кастомная метка с подсетями сканеров (по запросу в чате)
+      restrictions = {
+          subnets = ( "185.191.34.160/27", "185.163.156.0/22" );
+      };
+    },
+    # https://t.me/c/1861846963/14480
+    {
+         name = "block_hapth_1";
+         restrictions = {
+              headers_glob =
+              (
+                "host:api.megamarket.tech"
+              );
+              path = (
+                  "+/api/market/v1/partnerService/merchantAgent/get",
+                  "+/api/market/mms/merchant/list",
+                  "+/api/market/v1/partner/merchantAgent/get",
+                  "+/api/market/v1/mms/merchant/list",
+                  "+/api/market/v1/partnerService/merchant/list"
+              );
+         }; 
+         protection_mode = 4;
+         base_user_classes_settings = {
+              action = "block";
+              enable_captcha = false;
+         };
+    },
+    {
+         name = "block_hapth_2";
+         restrictions = {
+              headers_glob =
+              (
+                "host:partner.megamarket.ru"
+              );
+              path = (
+                  "+/api/merchantUI/mui-auth/v1/member/list"
+              );
+         }; 
+         protection_mode = 4;
+         base_user_classes_settings = {
+              action = "block";
+              enable_captcha = false;
+         };
+    },
+    # ----------------------------
+    {
+         name = "path1_block_all";
+         restrictions = {
+              headers_glob =
+              (
+                "host:api.megamarket.tech"
+              );
+              path = (
+                  "+/api/market/v1/orderService/order/cancelResult",
+                  "+/api/market/v1/partnerService/merchantAgent/get",
+                  "+/api/market/mms/merchant/list"
+              );
+         }; 
+         protection_mode = 4;
+         base_user_classes_settings = {
+              action = "block";
+              enable_captcha = false;
+         };
+    },
+    {
+         name = "path1_default_for_post";
+         restrictions = {
+              headers_glob =
+              (
+                "host:api.megamarket.tech"
+              );
+              path = (
+                  "/api/market/v1/orderService/order/cancelResult"
+              );
+              http_methods =
+              [
+                "POST"
+              ];
+              ddos = false;
+         }; 
+         protection_mode = 4;
+         base_user_classes_settings = {
+             action = "pass";
+         };
+         #user_classes = {
+         #    strong_bot = {
+         #        action = "block";
+         #    };
+         #    bot = {
+         #        action = "challenge";
+         #    };
+         #    check = {
+         #        action = "challenge";
+         #    };
+         #    human = {
+         #        action = "pass";
+         #    };
+         #};
+    },
+    {
+         name = "path2_block_get_put";
+         restrictions = {
+               headers_glob =
+              (
+                "host:api.megamarket.tech"
+              );
+              path = (
+                   "+/api/market/v1/orderService/order/get",
+                   "+/api/merchantIntegration/v1/offerService/stock/update"
+              );
+              http_methods =
+              [
+                   "GET", "PUT"
+              ]
+         }; 
+         protection_mode = 4;
+         base_user_classes_settings = {
+              action = "block";
+              enable_captcha = false;
+         };
+    },
+    {
+    name = "pass_path_for_wl"; #https://t.me/c/1861846963/16220
+    restrictions = {
+        headers_glob =
+              (
+                "host:api.megamarket.tech"
+              );
+        path = (
+            "/api/broker-api/webhook/yookassa",
+            "/api/broker-api/webhook/sdek/status",
+            "/api/merchantUI/home/v1/BrokerGoodsList/get",
+            "/api/merchantUI/home/v1/BrokerCart/update",
+            "/api/merchantUI/home/v1/BrokerGood/get",
+            "/api/merchantUI/home/v1/BrokerCart/confirm",
+            "/api/merchantUI/home/v1/BrokerAuth/keySend",
+            "/api/merchantUI/home/v1/BrokerAuth/phoneNumberVerify",
+            "/api/merchantUI/home/v1/BrokerAuth/jwtAccessToken",
+            "/api/merchantUI/home/v1/BrokerCart/count",
+            "/api/merchantUI/home/v1/BrokerCart/get",
+            "/api/merchantUI/home/v1/BrokerConfigApp/get",
+            "/api/merchantUI/home/v1/BrokerCart/add",
+            "/api/merchantUI/home/v1/BrokerCart/delete",
+            "/api/merchantUI/home/v1/BrokerCart/memberToForeign",
+            "/api/merchantUI/home/v1/BrokerWidget/get",
+            "/api/merchantUI/bffAssortment/v1/offer/noStockList",
+            "/api/merchantUI/bffAssortment/v1/feed/savexls",
+            "/api/businessUI/advertiserAdmin/v3/personalAccount/create",
+            "/api/businessUI/advertiserAdmin/v3/personalAccount/delete",
+            "/api/businessUI/advertiserAdmin/v3/personalAccount/update",
+            "/api/businessUI/advertiserAdmin/v3/serviceAccount/create",
+            "/api/businessUI/advertiserAdmin/v3/serviceAccount/delete",
+            "/api/businessUI/advertiserAdmin/v3/serviceAccount/update",
+            "/api/advertiser/v1/advertiserBackendService/user/login",
+            "/api/advertiser/v1/advertiserBackendService/user/logout",
+            "/api/advertiser/v1/advertiserBackendService/user/refresh",
+            "/api/advertiser/v1/advertiserBackendService/advert/search",
+            "/api/advertiser/v1/advertiserBackendService/advert/searchPublic",
+            "/api/advertiser/v1/advertiserBackendService/advert/create",
+            "/api/advertiser/v1/advertiserBackendService/advert/update",
+            "/api/advertiser/v1/advertiserBackendService/advert/updateRelatedSet",
+            "/api/advertiser/v1/advertiserBackendService/advert/delete",
+            "/api/advertiser/v1/advertiserBackendService/advert/pause",
+            "/api/advertiser/v1/advertiserBackendService/advert/complete",
+            "/api/advertiser/v1/advertiserBackendService/advert/activate",
+            "/api/advertiser/v1/advertiserBackendService/advert/archive",
+            "/api/advertiser/v1/advertiserBackendService/advert/clarify",
+            "/api/advertiser/v1/advertiserBackendService/advert/moderate",
+            "/api/advertiser/v1/advertiserBackendService/advert/approve",
+            "/api/advertiser/v1/advertiserBackendService/advert/reject",
+            "/api/advertiser/v1/advertiserBackendService/advert/analytics",
+            "/api/advertiser/v1/advertiserBackendService/advert/getItemsFromFile",
+            "/api/advertiser/v1/advertiserBackendService/advert/mediaPlanning",
+            "/api/advertiser/v1/advertiserBackendService/advert/clone",
+            "/api/advertiser/v1/advertiserBackendService/advert/temporaryORDUpdate",
+            "/api/advertiser/v1/advertiserBackendService/campaign/search",
+            "/api/advertiser/v1/advertiserBackendService/campaign/searchOrd",
+            "/api/advertiser/v1/advertiserBackendService/campaign/create",
+            "/api/advertiser/v1/advertiserBackendService/campaign/createWithAdverts",
+            "/api/advertiser/v1/advertiserBackendService/campaign/update",
+            "/api/advertiser/v1/advertiserBackendService/campaign/delete",
+            "/api/advertiser/v1/advertiserBackendService/campaign/pause",
+            "/api/advertiser/v1/advertiserBackendService/campaign/activate",
+            "/api/advertiser/v1/advertiserBackendService/campaign/archive",
+            "/api/advertiser/v1/advertiserBackendService/campaign/moderate",
+            "/api/advertiser/v1/advertiserBackendService/campaign/approve",
+            "/api/advertiser/v1/advertiserBackendService/campaign/reject",
+            "/api/advertiser/v1/advertiserBackendService/campaign/analytics",
+            "/api/advertiser/v1/advertiserBackendService/campaign/report",
+            "/api/internal/advertiser/v1/advertiserBackendService/campaign/pauseByPromo",
+            "/api/advertiser/v1/advertiserBackendService/merchant/search",
+            "/api/advertiser/v1/advertiserBackendService/location/search",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/search",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/create",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/update",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/delete",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/search",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/create",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/update",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/delete",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/search",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/create",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/update",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/delete",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/analytics",
+            "/api/advertiser/v1/advertiserBackendService/auctionHistory/search",
+            "/api/advertiser/v1/advertiserBackendService/file/upload",
+            "/api/advertiser/v1/advertiserBackendService/file/delete",
+            "/api/advertiser/v1/advertiserBackendService/collection/search",
+            "/api/advertiser/v1/advertiserBackendService/collection/list",
+            "/api/advertiser/v1/advertiserBackendService/item/search",
+            "/api/advertiser/v1/advertiserBackendService/issue/search",
+            "/api/advertiser/v1/advertiserBackendService/issue/create",
+            "/api/advertiser/v1/advertiserBackendService/issue/update",
+            "/api/advertiser/v1/advertiserBackendService/issue/delete",
+            "/api/advertiser/v1/advertiserBackendService/collection/get",
+            "/api/advertiser/v1/advertiserBackendService/collection/getBrandZones",
+            "/api/advertiser/v1/advertiserBackendService/collection/getByUrl",
+            "/api/advertiser/v1/advertiserBackendService/moderation/history",
+            "/api/advertiser/v1/advertiserBackendService/landing/search",
+            "/api/advertiser/v1/advertiserBackendService/landing/create",
+            "/api/advertiser/v1/advertiserBackendService/landing/update",
+            "/api/advertiser/v1/advertiserBackendService/landing/checkSlug",
+            "/api/advertiser/v1/advertiserBackendService/landing/getAdverts",
+            "/api/advertiser/v1/advertiserBackendService/landing/waitApprove",
+            "/api/advertiser/v1/advertiserBackendService/landing/moderate",
+            "/api/advertiser/v1/advertiserBackendService/landing/reject",
+            "/api/advertiser/v1/advertiserBackendService/landing/approve",
+            "/api/advertiser/v1/advertiserBackendService/landing/pause",
+            "/api/advertiser/v1/advertiserBackendService/landing/complete",
+            "/api/advertiser/v1/advertiserBackendService/landing/archive",
+            "/api/advertiser/v1/advertiserBackendService/user/search",
+            "/api/advertiser/v1/advertiserBackendService/user/create",
+            "/api/advertiser/v1/advertiserBackendService/user/update",
+            "/api/advertiser/v1/advertiserBackendService/user/delete",
+            "/api/advertiser/v1/advertiserBackendService/user/changeStatus",
+            "/api/advertiser/v1/advertiserBackendService/user/changeLoggedPassword",
+            "/api/advertiser/v1/advertiserBackendService/user/changePassword",
+            "/api/advertiser/v1/advertiserBackendService/user/notifyChangePassword",
+            "/api/advertiser/v1/advertiserBackendService/company/search",
+            "/api/advertiser/v1/advertiserBackendService/company/create",
+            "/api/advertiser/v1/advertiserBackendService/company/update",
+            "/api/advertiser/v1/advertiserBackendService/company/delete",
+            "/api/advertiser/v1/advertiserBackendService/promoCalendar/get",
+            "/api/advertiser/v1/advertiserBackendService/mainCalendar/search",
+            "/api/advertiser/v1/advertiserBackendService/billing/search",
+            "/api/advertiser/v1/advertiserBackendService/billing/create",
+            "/api/advertiser/v1/advertiserBackendService/billing/update",
+            "/api/advertiser/v1/advertiserBackendService/billing/delete",
+            "/api/advertiser/v1/advertiserBackendService/billing/balance/get",
+            "/api/advertiser/v1/advertiserBackendService/billing/invoice/createForBalanceRecharge",
+            "/api/advertiser/v1/advertiserBackendService/billing/invoice/search",
+            "/api/advertiser/v1/advertiserBackendService/billing/invoice/getPdf",
+            "/api/advertiser/v1/advertiserBackendService/billing/bonus/get",
+            "/api/advertiser/v1/advertiserBackendService/financial/getReport",
+            "/api/advertiser/v1/advertiserBackendService/notification/search",
+            "/api/advertiser/v1/advertiserBackendService/campaign/clone",
+            "/api/advertiser/v1/advertiserBackendService/ord/fieldSearch",
+            "/api/advertiser/v1/advertiserBackendService/ord/fieldValidate",
+            "/api/advertiser/v1/advertiserBackendService/ord/workFormatSearch",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/createWithFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getState",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getOriginalFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getResultFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getTemplateFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getAdvertsAndItemsFile",
+            "/api/advertiser/v1/advertiserBackendService/campaign/updateWithAdverts",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/create",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/update",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/pause",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/complete",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/activate",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/archive",
+            "/api/advertiser/v1/advertiserBackendService/advertReport/create",
+            "/api/advertiser/v1/advertiserBackendService/advertReport/getState",
+            "/api/advertiser/v1/advertiserBackendService/advertReport/getResultFile",
+            "/api/advertiser/v1/advertiserBackendService/creative/create",
+            "/api/advertiser/v1/advertiserBackendService/creative/createView",
+            "/api/advertiser/v1/advertiserBackendService/creative/get",
+            "/api/logisticProcessing/v1/logCalcManager/zones/list",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentDraft/revalidate",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentDraftXlsx/download",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentHdRequest/add",
+            "/api/v1/assortment/locations/hasActive",
+            "/api/merchantAssortment/securityService/v1/session/start",
+            "/api/merchantAssortment/securityService/v1/session/info",
+            "/api/merchantAssortment/securityService/v1/session/close",
+            "/api/merchantAssortment/securityService/v1/user/list",
+            "/api/merchantAssortment/fileLoaderService/v1/image/uploadUrl",
+            "/api/merchantAssortment/fileLoaderService/v1/image/uploadFile",
+            "/api/merchantAssortment/fileLoaderService/v1/pdf/uploadUrl",
+            "/api/merchantAssortment/fileLoaderService/v1/pdf/uploadFile",
+            "/api/merchantInternal/contentji/v1/content/save",
+            "/api/merchantInternal/contentji/v1/content/delete",
+            "/api/merchantInternal/contentji/v1/content/get",
+            "/api/merchantInternal/contentji/v1/content/list",
+            "/api/contactCenter/v1/audioConversationService/-/swagger",
+            "/api/contactCenter/v1/audioConversationService/queueDownloadRecord/addTasks",
+            "/api/contactCenter/v1/audioConversationService/records/missed",
+            "/api/contactCenter/v1/audioConversationService/records/clean",
+            "/api/contactCenter/v1/audioConversationService/speechanalytics/calls",
+            "/api/contactCenter/v1/audioConversationService/speechanalytics/operators",
+            "/api/contactCenter/v1/audioConversationService/speechanalytics/recording",
+            "/api/contactCenter/v1/audioConversationService/emails/sync",
+            "/api/contactCenter/v1/audioConversationService/ced/sync",
+            "/api/contactCenter/v1/audioConversationService/lia/processingResults",
+            "/api/contactCenterUIService/v1/customerOrderService/customer/listActiveOrders",
+            "/api/contactCenterUIService/v1/customerOrderService/deliveryLogisticOperatorInfo/get",
+            "/api/contactCenterUIService/v1/orderService/chatBotOrder/get",
+            "/api/contactCenterUIService/v1/contactCenterSecurityService/user/roles",
+            "/api/customerService/ccAskSolomonLia/v1/ccRequest/listActive",
+            "/api/customerService/ccAskSolomonLia/v1/order/listActive",
+            "/api/customerService/ccAskSolomonLia/v1/order/get",
+            "/api/customerService/ccAskSolomonLia/v1/order/search",
+            "/api/customerService/ccAskSolomonLia/v1/ticket/list",
+            "/api/customerService/ccAskSolomonLia/v1/ticket/get",
+            "/api/customerService/ccAskSolomonIVR/v1/ccRequest/listActive",
+            "/api/customerService/ccAskSolomonIVR/v1/logisticOperator/get",
+            "/api/customerService/ccAskSolomonIVR/v1/order/get",
+            "/api/customerService/ccAskSolomonIVR/v1/order/listActive",
+            "/api/customerService/ccAskSolomonIVR/v1/ticket/list",
+            "/api/customerService/ccAskSolomonLia/v1/customerInfo/get",
+            "/api/customerService/ccAskSolomonIVR/v1/customerInfo/get",
+            "/api/customerService/ccAskSolomonLia/v1/deliveryRejectResolution/list",
+            "/api/customerService/ccAskSolomonLia/v1/loyaltyOperation/list",
+            "/api/customerService/ccAskSolomonIVR/v1/loyaltyOperation/list",
+            "/api/customerService/ccAskSolomonLia/v1/delivery/reject",
+            "/api/customerService/ccAskSolomonLia/v1/customerPromocode/list",
+            "/api/market/v1/suggestService/address/suggest",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/search",
+            "/api/customerExperience/v1/mermanAdminPanel/auth/login",
+            "/api/customerExperience/v1/mermanAdminPanel/auth/logout",
+            "/api/customerExperience/v1/mermanAdminPanel/node/get",
+            "/api/customerExperience/v1/mermanAdminPanel/node/update",
+            "/api/customerExperience/v1/mermanAdminPanel/node/create",
+            "/api/customerExperience/v1/mermanAdminPanel/node/delete",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getMenuNodesHierarchy",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getNodeChildren",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getChildrenLevel",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getSpecialChildren",
+            "/api/customerExperience/v1/mermanAdminPanel/node/search",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/get",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/create",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/update",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/getTree",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/save",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/getList",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/saveGoods",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/start",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/status",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/autoApprove",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/upload",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/getFilterData",
+            "/api/merchantPromo/increasedCashbackService/v1/merchantCashback/getTree",
+            "/api/merchantPromo/increasedCashbackService/v1/endlessCashback/getList",
+            "/api/merchantPromo/increasedCashbackService/v1/merchantCashback/save",
+            "/api/merchantPromo/increasedCashbackService/v1/endlessCashbackResponse/save",
+            "/api/merchantPromo/increasedCashbackService/v2/endlessCashbackResponse/save",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentDraftXlsx/download"
+        );
+        subnets = (
+            "45.90.244.224/27",
+            "45.138.161.32/27",
+            "62.182.157.112/28",
+            "62.182.157.240/28",
+            "82.202.214.128/25",
+            "89.20.60.0/26",
+            "89.20.60.64/26",
+            "91.194.213.0/25",
+            "92.53.85.32/29",
+            "164.138.102.0/24",
+            "188.124.53.0/24",
+            "193.35.96.0/25",
+            "193.35.97.0/25",
+            "212.41.24.192/28",
+            "212.48.234.160/28"
+        );
+    };
+    protection_mode = 4;
+    base_user_classes_settings = {
+        action = "pass";
+    };
+},
+{
+    name = "block_path_for_wl"; #https://t.me/c/1861846963/16220
+    restrictions = {
+        headers_glob =
+              (
+                "host:api.megamarket.tech"
+              );
+        path = (
+            "/api/broker-api/webhook/yookassa",
+            "/api/broker-api/webhook/sdek/status",
+            "/api/merchantUI/home/v1/BrokerGoodsList/get",
+            "/api/merchantUI/home/v1/BrokerCart/update",
+            "/api/merchantUI/home/v1/BrokerGood/get",
+            "/api/merchantUI/home/v1/BrokerCart/confirm",
+            "/api/merchantUI/home/v1/BrokerAuth/keySend",
+            "/api/merchantUI/home/v1/BrokerAuth/phoneNumberVerify",
+            "/api/merchantUI/home/v1/BrokerAuth/jwtAccessToken",
+            "/api/merchantUI/home/v1/BrokerCart/count",
+            "/api/merchantUI/home/v1/BrokerCart/get",
+            "/api/merchantUI/home/v1/BrokerConfigApp/get",
+            "/api/merchantUI/home/v1/BrokerCart/add",
+            "/api/merchantUI/home/v1/BrokerCart/delete",
+            "/api/merchantUI/home/v1/BrokerCart/memberToForeign",
+            "/api/merchantUI/home/v1/BrokerWidget/get",
+            "/api/merchantUI/bffAssortment/v1/offer/noStockList",
+            "/api/merchantUI/bffAssortment/v1/feed/savexls",
+            "/api/businessUI/advertiserAdmin/v3/personalAccount/create",
+            "/api/businessUI/advertiserAdmin/v3/personalAccount/delete",
+            "/api/businessUI/advertiserAdmin/v3/personalAccount/update",
+            "/api/businessUI/advertiserAdmin/v3/serviceAccount/create",
+            "/api/businessUI/advertiserAdmin/v3/serviceAccount/delete",
+            "/api/businessUI/advertiserAdmin/v3/serviceAccount/update",
+            "/api/advertiser/v1/advertiserBackendService/user/login",
+            "/api/advertiser/v1/advertiserBackendService/user/logout",
+            "/api/advertiser/v1/advertiserBackendService/user/refresh",
+            "/api/advertiser/v1/advertiserBackendService/advert/search",
+            "/api/advertiser/v1/advertiserBackendService/advert/searchPublic",
+            "/api/advertiser/v1/advertiserBackendService/advert/create",
+            "/api/advertiser/v1/advertiserBackendService/advert/update",
+            "/api/advertiser/v1/advertiserBackendService/advert/updateRelatedSet",
+            "/api/advertiser/v1/advertiserBackendService/advert/delete",
+            "/api/advertiser/v1/advertiserBackendService/advert/pause",
+            "/api/advertiser/v1/advertiserBackendService/advert/complete",
+            "/api/advertiser/v1/advertiserBackendService/advert/activate",
+            "/api/advertiser/v1/advertiserBackendService/advert/archive",
+            "/api/advertiser/v1/advertiserBackendService/advert/clarify",
+            "/api/advertiser/v1/advertiserBackendService/advert/moderate",
+            "/api/advertiser/v1/advertiserBackendService/advert/approve",
+            "/api/advertiser/v1/advertiserBackendService/advert/reject",
+            "/api/advertiser/v1/advertiserBackendService/advert/analytics",
+            "/api/advertiser/v1/advertiserBackendService/advert/getItemsFromFile",
+            "/api/advertiser/v1/advertiserBackendService/advert/mediaPlanning",
+            "/api/advertiser/v1/advertiserBackendService/advert/clone",
+            "/api/advertiser/v1/advertiserBackendService/advert/temporaryORDUpdate",
+            "/api/advertiser/v1/advertiserBackendService/campaign/search",
+            "/api/advertiser/v1/advertiserBackendService/campaign/searchOrd",
+            "/api/advertiser/v1/advertiserBackendService/campaign/create",
+            "/api/advertiser/v1/advertiserBackendService/campaign/createWithAdverts",
+            "/api/advertiser/v1/advertiserBackendService/campaign/update",
+            "/api/advertiser/v1/advertiserBackendService/campaign/delete",
+            "/api/advertiser/v1/advertiserBackendService/campaign/pause",
+            "/api/advertiser/v1/advertiserBackendService/campaign/activate",
+            "/api/advertiser/v1/advertiserBackendService/campaign/archive",
+            "/api/advertiser/v1/advertiserBackendService/campaign/moderate",
+            "/api/advertiser/v1/advertiserBackendService/campaign/approve",
+            "/api/advertiser/v1/advertiserBackendService/campaign/reject",
+            "/api/advertiser/v1/advertiserBackendService/campaign/analytics",
+            "/api/advertiser/v1/advertiserBackendService/campaign/report",
+            "/api/internal/advertiser/v1/advertiserBackendService/campaign/pauseByPromo",
+            "/api/advertiser/v1/advertiserBackendService/merchant/search",
+            "/api/advertiser/v1/advertiserBackendService/location/search",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/search",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/create",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/update",
+            "/api/advertiser/v1/advertiserBackendService/advertGroup/delete",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/search",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/create",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/update",
+            "/api/advertiser/v1/advertiserBackendService/advertFormat/delete",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/search",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/create",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/update",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/delete",
+            "/api/advertiser/v1/advertiserBackendService/advertPlace/analytics",
+            "/api/advertiser/v1/advertiserBackendService/auctionHistory/search",
+            "/api/advertiser/v1/advertiserBackendService/file/upload",
+            "/api/advertiser/v1/advertiserBackendService/file/delete",
+            "/api/advertiser/v1/advertiserBackendService/collection/search",
+            "/api/advertiser/v1/advertiserBackendService/collection/list",
+            "/api/advertiser/v1/advertiserBackendService/item/search",
+            "/api/advertiser/v1/advertiserBackendService/issue/search",
+            "/api/advertiser/v1/advertiserBackendService/issue/create",
+            "/api/advertiser/v1/advertiserBackendService/issue/update",
+            "/api/advertiser/v1/advertiserBackendService/issue/delete",
+            "/api/advertiser/v1/advertiserBackendService/collection/get",
+            "/api/advertiser/v1/advertiserBackendService/collection/getBrandZones",
+            "/api/advertiser/v1/advertiserBackendService/collection/getByUrl",
+            "/api/advertiser/v1/advertiserBackendService/moderation/history",
+            "/api/advertiser/v1/advertiserBackendService/landing/search",
+            "/api/advertiser/v1/advertiserBackendService/landing/create",
+            "/api/advertiser/v1/advertiserBackendService/landing/update",
+            "/api/advertiser/v1/advertiserBackendService/landing/checkSlug",
+            "/api/advertiser/v1/advertiserBackendService/landing/getAdverts",
+            "/api/advertiser/v1/advertiserBackendService/landing/waitApprove",
+            "/api/advertiser/v1/advertiserBackendService/landing/moderate",
+            "/api/advertiser/v1/advertiserBackendService/landing/reject",
+            "/api/advertiser/v1/advertiserBackendService/landing/approve",
+            "/api/advertiser/v1/advertiserBackendService/landing/pause",
+            "/api/advertiser/v1/advertiserBackendService/landing/complete",
+            "/api/advertiser/v1/advertiserBackendService/landing/archive",
+            "/api/advertiser/v1/advertiserBackendService/user/search",
+            "/api/advertiser/v1/advertiserBackendService/user/create",
+            "/api/advertiser/v1/advertiserBackendService/user/update",
+            "/api/advertiser/v1/advertiserBackendService/user/delete",
+            "/api/advertiser/v1/advertiserBackendService/user/changeStatus",
+            "/api/advertiser/v1/advertiserBackendService/user/changeLoggedPassword",
+            "/api/advertiser/v1/advertiserBackendService/user/changePassword",
+            "/api/advertiser/v1/advertiserBackendService/user/notifyChangePassword",
+            "/api/advertiser/v1/advertiserBackendService/company/search",
+            "/api/advertiser/v1/advertiserBackendService/company/create",
+            "/api/advertiser/v1/advertiserBackendService/company/update",
+            "/api/advertiser/v1/advertiserBackendService/company/delete",
+            "/api/advertiser/v1/advertiserBackendService/promoCalendar/get",
+            "/api/advertiser/v1/advertiserBackendService/mainCalendar/search",
+            "/api/advertiser/v1/advertiserBackendService/billing/search",
+            "/api/advertiser/v1/advertiserBackendService/billing/create",
+            "/api/advertiser/v1/advertiserBackendService/billing/update",
+            "/api/advertiser/v1/advertiserBackendService/billing/delete",
+            "/api/advertiser/v1/advertiserBackendService/billing/balance/get",
+            "/api/advertiser/v1/advertiserBackendService/billing/invoice/createForBalanceRecharge",
+            "/api/advertiser/v1/advertiserBackendService/billing/invoice/search",
+            "/api/advertiser/v1/advertiserBackendService/billing/invoice/getPdf",
+            "/api/advertiser/v1/advertiserBackendService/billing/bonus/get",
+            "/api/advertiser/v1/advertiserBackendService/financial/getReport",
+            "/api/advertiser/v1/advertiserBackendService/notification/search",
+            "/api/advertiser/v1/advertiserBackendService/campaign/clone",
+            "/api/advertiser/v1/advertiserBackendService/ord/fieldSearch",
+            "/api/advertiser/v1/advertiserBackendService/ord/fieldValidate",
+            "/api/advertiser/v1/advertiserBackendService/ord/workFormatSearch",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/createWithFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getState",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getOriginalFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getResultFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getTemplateFile",
+            "/api/advertiser/v1/advertiserBackendService/advertBatch/getAdvertsAndItemsFile",
+            "/api/advertiser/v1/advertiserBackendService/campaign/updateWithAdverts",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/create",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/update",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/pause",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/complete",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/activate",
+            "/api/advertiser/v1/advertiserBackendService/advert/set/archive",
+            "/api/advertiser/v1/advertiserBackendService/advertReport/create",
+            "/api/advertiser/v1/advertiserBackendService/advertReport/getState",
+            "/api/advertiser/v1/advertiserBackendService/advertReport/getResultFile",
+            "/api/advertiser/v1/advertiserBackendService/creative/create",
+            "/api/advertiser/v1/advertiserBackendService/creative/createView",
+            "/api/advertiser/v1/advertiserBackendService/creative/get",
+            "/api/logisticProcessing/v1/logCalcManager/zones/list",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentDraft/revalidate",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentDraftXlsx/download",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentHdRequest/add",
+            "/api/v1/assortment/locations/hasActive",
+            "/api/merchantAssortment/securityService/v1/session/start",
+            "/api/merchantAssortment/securityService/v1/session/info",
+            "/api/merchantAssortment/securityService/v1/session/close",
+            "/api/merchantAssortment/securityService/v1/user/list",
+            "/api/merchantAssortment/fileLoaderService/v1/image/uploadUrl",
+            "/api/merchantAssortment/fileLoaderService/v1/image/uploadFile",
+            "/api/merchantAssortment/fileLoaderService/v1/pdf/uploadUrl",
+            "/api/merchantAssortment/fileLoaderService/v1/pdf/uploadFile",
+            "/api/merchantInternal/contentji/v1/content/save",
+            "/api/merchantInternal/contentji/v1/content/delete",
+            "/api/merchantInternal/contentji/v1/content/get",
+            "/api/merchantInternal/contentji/v1/content/list",
+            "/api/contactCenter/v1/audioConversationService/-/swagger",
+            "/api/contactCenter/v1/audioConversationService/queueDownloadRecord/addTasks",
+            "/api/contactCenter/v1/audioConversationService/records/missed",
+            "/api/contactCenter/v1/audioConversationService/records/clean",
+            "/api/contactCenter/v1/audioConversationService/speechanalytics/calls",
+            "/api/contactCenter/v1/audioConversationService/speechanalytics/operators",
+            "/api/contactCenter/v1/audioConversationService/speechanalytics/recording",
+            "/api/contactCenter/v1/audioConversationService/emails/sync",
+            "/api/contactCenter/v1/audioConversationService/ced/sync",
+            "/api/contactCenter/v1/audioConversationService/lia/processingResults",
+            "/api/contactCenterUIService/v1/customerOrderService/customer/listActiveOrders",
+            "/api/contactCenterUIService/v1/customerOrderService/deliveryLogisticOperatorInfo/get",
+            "/api/contactCenterUIService/v1/orderService/chatBotOrder/get",
+            "/api/contactCenterUIService/v1/contactCenterSecurityService/user/roles",
+            "/api/customerService/ccAskSolomonLia/v1/ccRequest/listActive",
+            "/api/customerService/ccAskSolomonLia/v1/order/listActive",
+            "/api/customerService/ccAskSolomonLia/v1/order/get",
+            "/api/customerService/ccAskSolomonLia/v1/order/search",
+            "/api/customerService/ccAskSolomonLia/v1/ticket/list",
+            "/api/customerService/ccAskSolomonLia/v1/ticket/get",
+            "/api/customerService/ccAskSolomonIVR/v1/ccRequest/listActive",
+            "/api/customerService/ccAskSolomonIVR/v1/logisticOperator/get",
+            "/api/customerService/ccAskSolomonIVR/v1/order/get",
+            "/api/customerService/ccAskSolomonIVR/v1/order/listActive",
+            "/api/customerService/ccAskSolomonIVR/v1/ticket/list",
+            "/api/customerService/ccAskSolomonLia/v1/customerInfo/get",
+            "/api/customerService/ccAskSolomonIVR/v1/customerInfo/get",
+            "/api/customerService/ccAskSolomonLia/v1/deliveryRejectResolution/list",
+            "/api/customerService/ccAskSolomonLia/v1/loyaltyOperation/list",
+            "/api/customerService/ccAskSolomonIVR/v1/loyaltyOperation/list",
+            "/api/customerService/ccAskSolomonLia/v1/delivery/reject",
+            "/api/customerService/ccAskSolomonLia/v1/customerPromocode/list",
+            "/api/market/v1/suggestService/address/suggest",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/search",
+            "/api/customerExperience/v1/mermanAdminPanel/auth/login",
+            "/api/customerExperience/v1/mermanAdminPanel/auth/logout",
+            "/api/customerExperience/v1/mermanAdminPanel/node/get",
+            "/api/customerExperience/v1/mermanAdminPanel/node/update",
+            "/api/customerExperience/v1/mermanAdminPanel/node/create",
+            "/api/customerExperience/v1/mermanAdminPanel/node/delete",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getMenuNodesHierarchy",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getNodeChildren",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getChildrenLevel",
+            "/api/customerExperience/v1/mermanAdminPanel/node/getSpecialChildren",
+            "/api/customerExperience/v1/mermanAdminPanel/node/search",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/get",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/create",
+            "/api/customerExperience/v1/mermanAdminPanel/collection/update",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/getTree",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/save",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/getList",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/saveGoods",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/start",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/status",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/autoApprove",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/upload",
+            "/api/merchantPromo/discountedGoodsService/v1/merchantDiscounted/getFilterData",
+            "/api/merchantPromo/increasedCashbackService/v1/merchantCashback/getTree",
+            "/api/merchantPromo/increasedCashbackService/v1/endlessCashback/getList",
+            "/api/merchantPromo/increasedCashbackService/v1/merchantCashback/save",
+            "/api/merchantPromo/increasedCashbackService/v1/endlessCashbackResponse/save",
+            "/api/merchantPromo/increasedCashbackService/v2/endlessCashbackResponse/save",
+            "/api/merchantAssortmentUIService/v1/merchantAssortmentService/assortmentDraftXlsx/download"
+        );
+    };
+    protection_mode = 4;
+    base_user_classes_settings = {
+        action = "block";
+    };
+}
+    );
+
+    states = (
+    {
+      name = "tech_level";
+      restrictions = {};
+      states = (
+      # write states here:
+        { #req client
+          name = "wl_req_client_api_off";
+          restrictions = {
+            path = ( 
+              "/api/sting",
+              "/api/colibri"
+            );
+            headers_glob =
+            (
+                "user-agent:colibri-sdk",
+                "host:api.megamarket.tech"
+            );
+          };
+          rate_limits = {
+            window_len_ms = 60000;
+            limit = 10000;
+          };
+          base_user_classes_settings = {
+          };
+        },
+        { #req client
+          name = "wl_req_client_api_on";
+          restrictions = {
+            path = ( 
+              "/api/sting",
+              "/api/colibri"
+            );
+            headers_glob =
+            (
+                "user-agent:colibri-sdk",
+                "host:api.megamarket.tech"
+            );
+          };
+          base_user_classes_settings = {
+            action = "pass";
+          };
+        }
+        # {
+        #     # ANS-3419
+        #     name = "ans-3419_temp_wl";
+        #   restrictions = {
+        #     path = ( 
+        #       "/api/merchantIntegration/assortment"
+        #     );
+        #     subnets = (
+        #         "92.242.32.118/32",
+        #         "89.108.72.192/32"
+        #     );
+        #   };
+        #   base_user_classes_settings = {
+        #     action = "pass";
+        #   };
+        # }
+      );
+    },
+    {
+      name = "client_adjustable";
+      restrictions = {
+      };
+      # !!! do not touch this comments: !!!
+      # start_of_api_generated_0
+      # end_of_api_generated_0
+    }
+    );
+  });
+};

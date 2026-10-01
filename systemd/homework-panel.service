@@ -4,12 +4,12 @@ After=network.target
 
 [Service]
 Type=simple
-User=YOUR_LINUX_USER
-WorkingDirectory=/home/YOUR_LINUX_USER/homework-bot
-ExecStart=/home/YOUR_LINUX_USER/homework-bot/venv/bin/python web.py
+User=root
+WorkingDirectory=/root/rkobyakov/homework-bot
+ExecStart=/root/rkobyakov/homework-bot/venv/bin/python web.py
 Restart=on-failure
 RestartSec=5
-EnvironmentFile=/home/YOUR_LINUX_USER/homework-bot/.env
+EnvironmentFile=/root/rkobyakov/homework-bot/.env
 
 [Install]
 WantedBy=multi-user.target
