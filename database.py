@@ -57,6 +57,7 @@ class Student(Base):
         "Submission",
         back_populates="student",
         order_by="Submission.created_at.desc()",
+        cascade="all, delete-orphan",
     )
 
     @property
@@ -73,11 +74,11 @@ class Submission(Base):
 
     id = Column(Integer, primary_key=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
-    kind = Column(String, nullable=False)  # "text", "voice" или "document"
+    # "text", "voice", "document" или "mixed" (несколько видов вложений / текст + файлы)
+    kind = Column(String, nullable=False)
     text_content = Column(Text, nullable=True)
-    # Для одиночного файла старого формата (голосовые всегда используют эти
-    # поля). Для файлов с несколькими вложениями используется таблица
-    # SubmissionFile ниже, эти поля тогда остаются пустыми.
+    # Для одиночного файла старого формата (старые голосовые/документы).
+    # Новые задания хранят вложения в таблице SubmissionFile ниже.
     file_path = Column(String, nullable=True)
     original_filename = Column(String, nullable=True)
     caption = Column(Text, nullable=True)  # описание задания от студента
@@ -98,9 +99,8 @@ class Submission(Base):
 
 
 class SubmissionFile(Base):
-    """Одно вложение задания. Используется, когда студент присылает
-    несколько файлов альбомом за раз — тогда на одно задание (Submission)
-    приходится несколько строк здесь."""
+    """Одно вложение задания (файл, аудио или голосовое). На одно задание
+    (Submission) может приходиться несколько строк здесь."""
 
     __tablename__ = "submission_files"
 
@@ -108,6 +108,8 @@ class SubmissionFile(Base):
     submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False)
     file_path = Column(String, nullable=False)
     original_filename = Column(String, nullable=True)
+    # "document", "audio" или "voice"
+    kind = Column(String, nullable=False, default="document", server_default="document")
     order_index = Column(Integer, default=0)
 
     submission = relationship("Submission", back_populates="files")
@@ -140,5 +142,13 @@ def _run_light_migrations():
         if "feedback_voice_path" not in existing_submission_cols:
             conn.exec_driver_sql(
                 "ALTER TABLE submissions ADD COLUMN feedback_voice_path TEXT"
+            )
+
+        existing_file_cols = {
+            row[1] for row in conn.exec_driver_sql("PRAGMA table_info(submission_files)")
+        }
+        if "kind" not in existing_file_cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE submission_files ADD COLUMN kind TEXT NOT NULL DEFAULT 'document'"
             )
         conn.commit()
