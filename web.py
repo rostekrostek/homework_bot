@@ -33,11 +33,23 @@ templates = Jinja2Templates(directory="templates")
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-KIND_LABELS = {"voice": "голосовое сообщение", "document": "файл(ы)", "text": "текстовое задание"}
+KIND_LABELS = {
+    "voice": "голосовое сообщение",
+    "document": "файл(ы)",
+    "mixed": "файл(ы)",
+    "text": "текстовое задание",
+}
 
 
 def is_logged_in(request: Request) -> bool:
     return bool(request.session.get("logged_in"))
+
+
+def _short(text: str | None, limit: int = 60) -> str | None:
+    if not text:
+        return text
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _students_url(group: str | None, sort: str | None) -> str:
@@ -126,7 +138,14 @@ async def dashboard(request: Request, status: str = "new", q: str = ""):
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"submissions": rows, "status": status, "q": q, "authed": True, "active_page": "dashboard"},
+        {
+            "submissions": rows,
+            "status": status,
+            "q": q,
+            "deleted": request.query_params.get("deleted") == "1",
+            "authed": True,
+            "active_page": "dashboard",
+        },
     )
 
 
@@ -149,7 +168,7 @@ async def submission_detail(request: Request, submission_id: int):
             "file_path": s.file_path,
             "original_filename": s.original_filename,
             "files": [
-                {"file_path": f.file_path, "original_filename": f.original_filename}
+                {"file_path": f.file_path, "original_filename": f.original_filename, "kind": f.kind}
                 for f in s.files
             ],
             "caption": s.caption,
@@ -177,6 +196,69 @@ async def get_media(request: Request, filename: str):
     if not file_path.exists():
         raise HTTPException(status_code=404)
     return FileResponse(file_path)
+
+
+@app.get("/submission/{submission_id}/delete", response_class=HTMLResponse)
+async def delete_submission_confirm(request: Request, submission_id: int):
+    """Шаг 1 из 2: страница «Вы уверены?». Само удаление — POST ниже."""
+    if not is_logged_in(request):
+        return RedirectResponse("/login", status_code=303)
+
+    session = SessionLocal()
+    try:
+        s = session.query(Submission).filter_by(id=submission_id).first()
+        if not s:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        files_count = len(s.files) or (1 if s.file_path else 0)
+        data = {
+            "id": s.id,
+            "student_name": s.student.full_name,
+            "group": s.student.display_group,
+            "caption": _short(s.caption or s.text_content, 200),
+            "created_at": s.created_at,
+            "files_count": files_count,
+            "reviewed": s.status == "reviewed",
+        }
+    finally:
+        session.close()
+
+    return templates.TemplateResponse(
+        request,
+        "delete_confirm.html",
+        {"s": data, "authed": True, "active_page": None},
+    )
+
+
+@app.post("/submission/{submission_id}/delete")
+async def delete_submission(request: Request, submission_id: int, confirm: str = Form("")):
+    """Шаг 2 из 2: фактическое удаление. Студенту ничего не отправляется."""
+    if not is_logged_in(request):
+        return RedirectResponse("/login", status_code=303)
+    if confirm != "yes":
+        return RedirectResponse(f"/submission/{submission_id}", status_code=303)
+
+    session = SessionLocal()
+    try:
+        s = session.query(Submission).filter_by(id=submission_id).first()
+        if not s:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        names = [f.file_path for f in s.files]
+        if s.file_path:
+            names.append(s.file_path)
+        if s.feedback_voice_path:
+            names.append(s.feedback_voice_path)
+        session.delete(s)
+        session.commit()
+    finally:
+        session.close()
+
+    for name in names:
+        try:
+            (MEDIA_DIR / Path(name).name).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    return RedirectResponse("/?status=all&deleted=1", status_code=303)
 
 
 @app.post("/submission/{submission_id}/feedback")
@@ -232,7 +314,7 @@ async def send_feedback(
         session.commit()
 
         telegram_id = s.student.telegram_id
-        task_label = s.caption or KIND_LABELS.get(s.kind, "задание")
+        task_label = _short(s.caption or s.text_content) or KIND_LABELS.get(s.kind, "задание")
         is_edit = was_reviewed
         voice_is_ogg = voice_rel_path is not None and voice_rel_path.endswith(".ogg")
     finally:

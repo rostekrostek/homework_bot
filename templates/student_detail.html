@@ -47,11 +47,11 @@
         <li>
           <a class="entry" href="/submission/{{ s.id }}">
             <div class="entry-top">
-              <span class="entry-name">{{ s.caption or (s.kind|capitalize) }}</span>
+              <span class="entry-name">{{ (s.caption or (s.kind|capitalize))|truncate(60) }}</span>
               <span class="entry-meta">
                 {{ s.created_at.strftime('%d.%m %H:%M') }}
                 <span class="badge {{ 'reviewed' if s.status == 'reviewed' }}">
-                  {% if s.kind == 'voice' %}голосовое{% elif s.kind == 'document' %}файл{% else %}текст{% endif %}
+                  {% if s.kind == 'voice' %}голосовое{% elif s.kind == 'document' %}файл{% elif s.kind == 'mixed' %}несколько файлов{% else %}текст{% endif %}
                 </span>
               </span>
             </div>
