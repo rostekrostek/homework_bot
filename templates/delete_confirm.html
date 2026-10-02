@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Удаление задания — {{ s.student_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="/submission/{{ s.id }}">← Назад к заданию</a>
+
+  <h2>Удалить задание?</h2>
+
+  <div class="card">
+    <p><strong>{{ s.student_name }}{% if s.group %} · {{ s.group }}{% endif %}</strong><br>
+      <span class="entry-meta">{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}
+      {% if s.files_count %} · файлов: {{ s.files_count }}{% endif %}
+      {% if s.reviewed %} · уже есть отзыв{% endif %}</span>
+    </p>
+    {% if s.caption %}<p style="white-space: pre-wrap;">{{ s.caption }}</p>{% endif %}
+
+    <p class="error" style="font-size: 1em;">
+      Задание, все его файлы и отзыв будут удалены безвозвратно.
+      Студент об удалении уведомлён не будет.
+    </p>
+
+    <form method="post" action="/submission/{{ s.id }}/delete"
+          onsubmit="return confirm('Последнее подтверждение: удалить задание от {{ s.student_name|e }} без возможности восстановления?');">
+      <input type="hidden" name="confirm" value="yes">
+      <button type="submit" class="danger-btn">Да, удалить безвозвратно</button>
+      <a href="/submission/{{ s.id }}" style="margin-left: 14px;">Нет, оставить</a>
+    </form>
+  </div>
+{% endblock %}
